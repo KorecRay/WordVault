@@ -92,6 +92,7 @@ h1, h2, h3 {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap; /* Prevent tight squeezing on medium screens */
 }
 
 /* Inputs & Forms */
@@ -166,9 +167,8 @@ h1, h2, h3 {
 }
 
 .unit-btn.completed {
-  border-color: var(--success);
+  border-color: rgba(16, 185, 129, 0.4);
   background: rgba(16, 185, 129, 0.05);
-  color: var(--success);
 }
 
 .unit-btn.selected {
@@ -177,27 +177,108 @@ h1, h2, h3 {
   box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
 }
 
-.unit-btn .check {
-  font-size: 0.8rem;
-  opacity: 0.8;
+/* New Vocabulary Layout Styles */
+.vocabulary-view {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  animation: fadeIn 0.4s ease-out;
 }
 
-.slider-track {
+.focused-word-section {
   display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  gap: 1.5rem;
-  height: 100%;
-  padding-bottom: 2rem;
-}
-
-.slide-item {
-  flex: 0 0 calc(100% - 3rem);
-  scroll-snap-align: center;
-  display: flex;
-  align-items: center;
   justify-content: center;
+  padding: 1rem 0;
+}
+
+.vocabulary-list-section {
+  width: 100%;
+}
+
+.vocab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vocab-list-item {
+  display: grid;
+  grid-template-columns: 140px 60px 1fr 100px;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--glass-border);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Derivative Indicator */
+.vocab-list-item.is-derivative {
+  margin-left: 2rem;
+  padding: 0.8rem 1.25rem;
+  border-left: 3px solid var(--accent-secondary);
+  background: rgba(168, 85, 247, 0.03);
+  font-size: 0.95rem;
+}
+
+.vocab-list-item.is-derivative::before {
+  content: '⌞';
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent-secondary);
+  font-size: 1.2rem;
+}
+
+.vocab-list-item.is-derivative .word {
+  font-size: 1rem;
+}
+
+.vocab-list-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+.vocab-list-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+}
+
+.vocab-list-item .word {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.vocab-list-item .pos {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-secondary);
+  background: rgba(168, 85, 247, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-align: center;
+  width: fit-content;
+}
+
+.vocab-list-item .meaning {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 1rem;
+}
+
+.vocab-list-item .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
 }
 
 /* Buttons */
@@ -279,28 +360,49 @@ h1, h2, h3 {
 }
 
 /* RWD */
-@media (max-width: 640px) {
-  .grid-mode {
-    display: none;
-  }
-  .word-slider-mode {
-    display: block;
-  }
+@media (max-width: 768px) {
   .section-header {
     flex-direction: column;
     align-items: stretch;
     padding: 2rem 0;
+    gap: 1.25rem;
   }
-  .filter-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  .search-bar, .filter-select, .btn {
+
+  .flex-group {
     width: 100%;
+    justify-content: space-between;
   }
-  .container {
-    padding: 0 1.25rem;
+
+  .flex-group:has(.btn-secondary) {
+    justify-content: flex-start;
+  }
+
+  .vocab-list-item {
+    grid-template-columns: 1fr 60px 80px;
+    grid-template-rows: auto auto;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+
+  .vocab-list-item .meaning {
+    grid-column: 1 / 4;
+    padding: 0.5rem 0 0;
+    white-space: normal;
+  }
+
+  .vocab-list-item .actions {
+    grid-row: 1;
+    grid-column: 3;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid-mode {
+    display: none;
+  }
+  /* Word slider mode is now removed in App.jsx but keeping cleanup here */
+  .section-header {
+    padding: 1.5rem 0;
   }
 }
 
@@ -453,9 +555,145 @@ h1, h2, h3 {
   font-size: 1.1rem;
 }
 
-@media (max-width: 640px) {
-  .quiz-result { padding: 1.5rem; }
-  .result-stat .value { font-size: 2rem; }
-  .wrong-item { flex-direction: column; align-items: flex-start; gap: 1rem; }
-  .answer-info { text-align: left; }
+/* WordCard Back V3 Enhancements */
+.bilingual-example {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.example-en {
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-style: italic;
+}
+
+.example-ch {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+.phrases-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.phrase-block {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1.25rem;
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  transition: transform 0.2s;
+}
+
+.phrase-block:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.phrase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.phrase-en {
+  font-weight: 700;
+  color: var(--accent-primary);
+  font-size: 1.1rem;
+  font-family: var(--font-display);
+}
+
+.phrase-ch {
+  font-size: 0.9rem;
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: var(--text-primary);
+}
+
+.phrase-ex {
+  border-left: 2px solid var(--accent-secondary);
+  padding-left: 1rem;
+  margin-top: 0.75rem;
+}
+
+.phrase-ex-en {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  display: block;
+}
+
+.phrase-ex-ch {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.derivatives-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.der-chip {
+  padding: 4px 10px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  border-radius: 100px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.der-chip .der-pos {
+  color: var(--accent-secondary);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+@media (max-width: 768px) {
+  .vocab-list-item.is-derivative {
+    margin-left: 1rem;
+  }
+}
+
+/* --- v3.1 Card Slider Styles --- */
+.focused-word-section {
+  margin-bottom: 3rem;
+  width: 100%;
+}
+
+.card-slider {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  gap: 2rem;
+  padding: 1rem 0 2rem;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.card-slider::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari and Opera */
+}
+
+.slider-item {
+  flex: 0 0 100%;
+  display: flex;
+  justify-content: center;
+  scroll-snap-align: center;
+}
+
+.vocabulary-list-section {
+  border-top: 1px solid var(--glass-border);
+  padding-top: 2rem;
 }

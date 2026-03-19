@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from './context/AppContext';
 import BookSelection from './components/BookSelection';
 import WordCard from './components/WordCard';
@@ -17,6 +17,10 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // all, starred
   const [quizSelection, setQuizSelection] = useState([]); // Array of unit numbers
+  const [selectedWordIndex, setSelectedWordIndex] = useState(0);
+  const cardSliderRef = useRef(null);
+  const listRef = useRef(null);
+  const isScrollingRef = useRef(false); // To prevent infinite loops during sync
 
   const handleUnitSelect = (unit) => {
     if (view === 'quiz_setup') {
@@ -32,10 +36,12 @@ const App = () => {
     }
     setSelectedUnit(unit);
     fetchWords(selectedBook.title, unit);
-    markUnitViewed(selectedBook.title, unit);
     setView('list');
     setSearchQuery('');
     setFilterType('all');
+    setSelectedWordIndex(0);
+    // Reset slider scroll
+    if (cardSliderRef.current) cardSliderRef.current.scrollLeft = 0;
   };
 
   const handleStartRangeQuiz = async () => {
@@ -82,6 +88,41 @@ const App = () => {
     }));
     setView('list');
   };
+
+  // --- v3.1 Slider Sync Logic ---
+  const handleSliderScroll = () => {
+    if (isScrollingRef.current || !cardSliderRef.current) return;
+    
+    const slider = cardSliderRef.current;
+    const index = Math.round(slider.scrollLeft / slider.offsetWidth);
+    if (index !== selectedWordIndex && index >= 0) {
+      setSelectedWordIndex(index);
+    }
+  };
+
+  useEffect(() => {
+    // Sync slider scroll when selectedWordIndex changes (e.g. from list click)
+    if (cardSliderRef.current) {
+      const slider = cardSliderRef.current;
+      const targetScrollLeft = selectedWordIndex * slider.offsetWidth;
+      
+      if (Math.abs(slider.scrollLeft - targetScrollLeft) > 10) {
+        isScrollingRef.current = true;
+        slider.scrollTo({
+          left: targetScrollLeft,
+          behavior: 'smooth'
+        });
+        // Release ref after animation
+        setTimeout(() => { isScrollingRef.current = false; }, 500);
+      }
+    }
+
+    // Scroll list item into view
+    const activeItem = document.querySelector('.vocab-list-item.active');
+    if (activeItem) {
+      activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedWordIndex]);
 
   const renderContent = () => {
     if (view === 'starred') {
@@ -150,7 +191,16 @@ const App = () => {
     }
 
     if (view === 'quiz' || view === 'quiz_review') {
-      const quizWords = view === 'quiz_review' ? learningStats.mistakes : words;
+      const sourceWords = view === 'quiz_review' ? learningStats.mistakes : words;
+      // Flatten for quiz
+      const quizWords = [];
+      sourceWords.forEach(w => {
+        quizWords.push(w);
+        if (w.derivatives && Array.isArray(w.derivatives)) {
+          quizWords.push(...w.derivatives);
+        }
+      });
+
       return (
         <QuizEngine 
           words={quizWords} 
@@ -233,11 +283,10 @@ const App = () => {
             {Array.from({ length: 40 }, (_, i) => i + 1).map(unit => (
               <button 
                 key={unit} 
-                className={`unit-btn glass ${viewedUnits.includes(unit) ? 'completed' : ''} ${quizSelection.includes(unit) ? 'selected' : ''}`}
+                className={`unit-btn glass ${quizSelection.includes(unit) ? 'selected' : ''}`}
                 onClick={() => handleUnitSelect(unit)}
               >
                 Unit {unit}
-                {viewedUnits.includes(unit) && <span className="check">✓</span>}
               </button>
             ))}
           </div>
@@ -258,13 +307,19 @@ const App = () => {
                  type="text" 
                  placeholder="搜尋單字..." 
                  value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
+                 onChange={(e) => {
+                   setSearchQuery(e.target.value);
+                   setSelectedWordIndex(0);
+                 }}
                />
              </div>
              <select 
                className="filter-select glass" 
                value={filterType} 
-               onChange={(e) => setFilterType(e.target.value)}
+               onChange={(e) => {
+                 setFilterType(e.target.value);
+                 setSelectedWordIndex(0);
+               }}
              >
                <option value="all">全部單字</option>
                <option value="starred">星號單字</option>
@@ -276,28 +331,60 @@ const App = () => {
         {loading ? (
           <div className="loading-state">載入中...</div>
         ) : (
-          <div className="view-mode-container">
-            <div className="word-grid grid-mode">
-              {filteredWords.length > 0 ? (
-                filteredWords.map(word => <WordCard key={word.word} wordData={word} />)
-              ) : (
-                <p className="empty-msg">找不到符合的單字</p>
-              )}
-            </div>
-            
-            <div className="word-slider-mode">
-              {filteredWords.length > 0 ? (
-                <div className="slider-track">
-                   {filteredWords.map(word => (
-                     <div key={word.word} className="slide-item">
-                       <WordCard wordData={word} />
-                     </div>
-                   ))}
-                </div>
-              ) : (
-                <p className="empty-msg">找不到符合的單字</p>
-              )}
-            </div>
+          <div className="vocabulary-view">
+            {(() => {
+              // Flatten words and derivatives for the list
+              const flattened = [];
+              filteredWords.forEach(mainWord => {
+                flattened.push({ ...mainWord, isMain: true });
+                if (mainWord.derivatives && Array.isArray(mainWord.derivatives)) {
+                  mainWord.derivatives.forEach(der => {
+                    flattened.push({ ...der, isDerivative: true, parentWord: mainWord.word });
+                  });
+                }
+              });
+
+              return (
+                <>
+                  {flattened.length > 0 && (
+                    <div 
+                      className="focused-word-section card-slider" 
+                      ref={cardSliderRef}
+                      onScroll={handleSliderScroll}
+                    >
+                      {flattened.map((word, idx) => (
+                        <div key={word.id || `${word.word}-${idx}`} className="slider-item">
+                          <WordCard wordData={word} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="vocabulary-list-section">
+                    <div className="vocab-list">
+                      {flattened.length > 0 ? (
+                        flattened.map((word, index) => (
+                          <div 
+                            key={word.id || `${word.word}-${index}`} 
+                            className={`vocab-list-item glass ${selectedWordIndex === index ? 'active' : ''} ${word.isDerivative ? 'is-derivative' : ''}`}
+                            onClick={() => setSelectedWordIndex(index)}
+                          >
+                            <span className="word">{word.word}</span>
+                            <span className="pos">{word.pos}</span>
+                            <span className="meaning">{word.meaning}</span>
+                            <div className="actions">
+                               {starredWords.some(w => w.word === word.word) && <span className="star-indicator">★</span>}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="empty-msg">找不到符合的單字</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
