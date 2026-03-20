@@ -55,7 +55,7 @@ const QuizEngine = ({ words, onComplete, onCancel }) => {
   }, [words]);
 
   const handleAnswer = (answer) => {
-    if (feedback) return; // Prevent multiple answers
+    if (feedback) return;
 
     const currentQ = questions[currentStep];
     const isCorrect = answer.trim().toLowerCase() === currentQ.correctAnswer.toLowerCase();
@@ -66,17 +66,18 @@ const QuizEngine = ({ words, onComplete, onCancel }) => {
       addMistake(currentQ.wordObj);
     }
 
-    setTimeout(() => {
-      setUserAnswers([...userAnswers, { ...currentQ, userAnswer: answer, isCorrect }]);
-      if (isCorrect) setScore(score + 1);
-      
-      if (currentStep < questions.length - 1) {
-        setCurrentStep(currentStep + 1);
-        setFeedback(null);
-      } else {
-        setShowResult(true);
-      }
-    }, 1500);
+    // Record answer immediately, but don't advance — user clicks Next
+    setUserAnswers(prev => [...prev, { ...currentQ, userAnswer: answer, isCorrect }]);
+    if (isCorrect) setScore(s => s + 1);
+  };
+
+  const handleNext = () => {
+    if (currentStep < questions.length - 1) {
+      setCurrentStep(s => s + 1);
+      setFeedback(null);
+    } else {
+      setShowResult(true);
+    }
   };
 
   if (questions.length === 0) return <div>準備題目中...</div>;
@@ -177,7 +178,7 @@ const QuizEngine = ({ words, onComplete, onCancel }) => {
               placeholder="請在這裡輸入單字..."
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAnswer(e.target.value);
+                if (e.key === 'Enter' && !feedback) handleAnswer(e.target.value);
               }}
               disabled={!!feedback}
             />
@@ -186,6 +187,14 @@ const QuizEngine = ({ words, onComplete, onCancel }) => {
                 {feedback.isCorrect ? '✨ 正確！太棒了' : `❌ 錯誤，正確答案是：${feedback.correctAnswer}`}
               </div>
             )}
+          </div>
+        )}
+
+        {feedback && (
+          <div className="next-btn-row">
+            <button className="btn btn-primary btn-lg" onClick={handleNext}>
+              {currentStep < questions.length - 1 ? '下一題 →' : '查看結果'}
+            </button>
           </div>
         )}
       </div>

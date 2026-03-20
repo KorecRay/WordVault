@@ -135,9 +135,9 @@ const WordCard = ({ wordData }) => {
       <style jsx>{`
         .word-card-container {
           perspective: 1200px;
-          height: 380px;
+          height: 440px;
           width: 100%;
-          max-width: 440px;
+          max-width: 480px;
           margin: 0 auto;
           cursor: pointer;
         }

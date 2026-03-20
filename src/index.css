@@ -397,12 +397,36 @@ h1, h2, h3 {
 }
 
 @media (max-width: 640px) {
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.5rem 0;
+    gap: 1rem;
+  }
+
+  .flex-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filter-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .filter-actions .search-bar {
+    width: 100%;
+  }
+
+  .filter-actions select,
+  .filter-actions .btn {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
   .grid-mode {
     display: none;
-  }
-  /* Word slider mode is now removed in App.jsx but keeping cleanup here */
-  .section-header {
-    padding: 1.5rem 0;
   }
 }
 
@@ -555,6 +579,12 @@ h1, h2, h3 {
   font-size: 1.1rem;
 }
 
+.next-btn-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
 /* WordCard Back V3 Enhancements */
 .bilingual-example {
   display: flex;
@@ -666,6 +696,13 @@ h1, h2, h3 {
 }
 
 /* --- v3.1 Card Slider Styles --- */
+/* --- Slider Styles --- */
+.slider-wrapper {
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
 .focused-word-section {
   margin-bottom: 3rem;
   width: 100%;
@@ -673,24 +710,23 @@ h1, h2, h3 {
 
 .card-slider {
   display: flex;
-  overflow-x: auto;
+  overflow-x: scroll;
   scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  gap: 2rem;
-  padding: 1rem 0 2rem;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge */
 }
 
 .card-slider::-webkit-scrollbar {
-  display: none;             /* Chrome, Safari and Opera */
+  display: none;                  /* Chrome/Safari */
 }
 
 .slider-item {
   flex: 0 0 100%;
+  box-sizing: border-box;
   display: flex;
   justify-content: center;
-  scroll-snap-align: center;
+  padding: 1.5rem 1.5rem 2.5rem;
+  scroll-snap-align: start;
 }
 
 .vocabulary-list-section {

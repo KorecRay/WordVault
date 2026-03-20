@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from './context/AppContext';
 import BookSelection from './components/BookSelection';
 import WordCard from './components/WordCard';
@@ -6,9 +6,9 @@ import QuizEngine from './components/QuizEngine';
 import { useVocabulary } from './hooks/useVocabulary';
 
 const App = () => {
-  const { 
-    selectedBook, setSelectedBook, 
-    selectedUnit, setSelectedUnit, 
+  const {
+    selectedBook, setSelectedBook,
+    selectedUnit, setSelectedUnit,
     starredWords, learningStats, setLearningStats,
     markUnitViewed, clearMistake
   } = useApp();
@@ -19,8 +19,7 @@ const App = () => {
   const [quizSelection, setQuizSelection] = useState([]); // Array of unit numbers
   const [selectedWordIndex, setSelectedWordIndex] = useState(0);
   const cardSliderRef = useRef(null);
-  const listRef = useRef(null);
-  const isScrollingRef = useRef(false); // To prevent infinite loops during sync
+  const isScrollingRef = useRef(false);
 
   const handleUnitSelect = (unit) => {
     if (view === 'quiz_setup') {
@@ -30,7 +29,7 @@ const App = () => {
           alert('最多選擇 5 個單元進行跨區測驗');
           return prev;
         }
-        return [...prev, unit].sort((a,b) => a-b);
+        return [...prev, unit].sort((a, b) => a - b);
       });
       return;
     }
@@ -40,13 +39,26 @@ const App = () => {
     setSearchQuery('');
     setFilterType('all');
     setSelectedWordIndex(0);
-    // Reset slider scroll
     if (cardSliderRef.current) cardSliderRef.current.scrollLeft = 0;
   };
 
+  const quizWords = useMemo(() => {
+    if (view !== 'quiz' && view !== 'quiz_review') return [];
+    
+    const sourceWords = view === 'quiz_review' ? learningStats.mistakes : words;
+    const flattened = [];
+    sourceWords.forEach(w => {
+      flattened.push(w);
+      if (w.derivatives && Array.isArray(w.derivatives)) {
+        flattened.push(...w.derivatives);
+      }
+    });
+    return flattened;
+  }, [words, view]); // Only re-cap words when the unit words or view mode changes
+
   const handleStartRangeQuiz = async () => {
     if (quizSelection.length === 0) return;
-    
+
     // Fetch all words for selected units
     const allWords = [];
     setView('loading');
@@ -73,8 +85,8 @@ const App = () => {
   };
 
   const filteredWords = (Array.isArray(words) ? words : []).filter(word => {
-    const matchesSearch = word.word.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          word.meaning.includes(searchQuery);
+    const matchesSearch = word.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      word.meaning.includes(searchQuery);
     const isStarred = starredWords.some(w => w.word === word.word);
     const matchesFilter = filterType === 'all' || (filterType === 'starred' && isStarred);
     return matchesFilter && matchesSearch;
@@ -84,78 +96,88 @@ const App = () => {
     setLearningStats(prev => ({
       ...prev,
       quizCount: prev.quizCount + 1,
-      quizAccuracy: Math.round(((prev.quizAccuracy * prev.quizCount) + (score/total*100)) / (prev.quizCount + 1))
+      quizAccuracy: Math.round(((prev.quizAccuracy * prev.quizCount) + (score / total * 100)) / (prev.quizCount + 1))
     }));
     setView('list');
   };
 
-  // --- v3.1 Slider Sync Logic ---
-  const handleSliderScroll = () => {
-    if (isScrollingRef.current || !cardSliderRef.current) return;
+  useEffect(() => {
+    if (!cardSliderRef.current || view !== 'list') return;
     
     const slider = cardSliderRef.current;
-    const index = Math.round(slider.scrollLeft / slider.offsetWidth);
-    if (index !== selectedWordIndex && index >= 0) {
-      setSelectedWordIndex(index);
-    }
-  };
+    const observerOptions = {
+      root: slider,
+      threshold: 0.6 // Trigger when 60% of card is visible
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      if (isScrollingRef.current) return; // Ignore updates during programmatic scroll
+      
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const index = parseInt(entry.target.getAttribute('data-index'));
+          setSelectedWordIndex(prev => (prev === index ? prev : index));
+        }
+      });
+    }, observerOptions);
+
+    const items = slider.querySelectorAll('.slider-item');
+    items.forEach(item => observer.observe(item));
+
+    return () => observer.disconnect();
+  }, [words, view]); // Simplified dependencies
 
   useEffect(() => {
-    // Sync slider scroll when selectedWordIndex changes (e.g. from list click)
-    if (cardSliderRef.current) {
-      const slider = cardSliderRef.current;
-      const targetScrollLeft = selectedWordIndex * slider.offsetWidth;
-      
-      if (Math.abs(slider.scrollLeft - targetScrollLeft) > 10) {
-        isScrollingRef.current = true;
-        slider.scrollTo({
-          left: targetScrollLeft,
-          behavior: 'smooth'
-        });
-        // Release ref after animation
-        setTimeout(() => { isScrollingRef.current = false; }, 500);
-      }
-    }
+    if (!cardSliderRef.current) return;
+    const slider = cardSliderRef.current;
+    const items = slider.querySelectorAll('.slider-item');
+    const target = items[selectedWordIndex];
+    if (!target) return;
+    
+    // Check if we actually need to scroll
+    if (Math.abs(slider.scrollLeft - target.offsetLeft) < 5) return;
 
-    // Scroll list item into view
-    const activeItem = document.querySelector('.vocab-list-item.active');
-    if (activeItem) {
-      activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    isScrollingRef.current = true;
+    slider.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+    
+    const t = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 800); // 800ms to ensure smooth scroll finishes
+    return () => clearTimeout(t);
   }, [selectedWordIndex]);
 
   const renderContent = () => {
     if (view === 'starred') {
-       const starredResults = starredWords.filter(w => 
-         w.word.toLowerCase().includes(searchQuery.toLowerCase()) || 
-         w.meaning.includes(searchQuery)
-       );
-       
-       return (
-         <div className="fade-in">
-           <header className="section-header">
-             <div className="flex-group">
-               <button className="btn btn-secondary" onClick={() => setView('home')}>← 返回</button>
-               <h2 className="gradient-text">星號單字 ({starredWords.length})</h2>
-             </div>
-             <div className="search-bar glass">
-               <input 
-                 type="text" 
-                 placeholder="搜尋星號單字..." 
-                 value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
-               />
-             </div>
-           </header>
-           <div className="word-grid grid-mode">
-             {starredResults.length > 0 ? (
-               starredResults.map(word => <WordCard key={word.word} wordData={word} />)
-             ) : (
-               <p className="empty-msg">找不到符合的星號單字</p>
-             )}
-           </div>
-         </div>
-       );
+      const starredResults = starredWords.filter(w =>
+        w.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        w.meaning.includes(searchQuery)
+      );
+
+      return (
+        <div className="fade-in">
+          <header className="section-header">
+            <div className="flex-group">
+              <button className="btn btn-secondary" onClick={() => setView('home')}>← 返回</button>
+              <h2 className="gradient-text">星號單字 ({starredWords.length})</h2>
+            </div>
+            <div className="search-bar glass">
+              <input
+                type="text"
+                placeholder="搜尋星號單字..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </header>
+          <div className="word-grid grid-mode">
+            {starredResults.length > 0 ? (
+              starredResults.map(word => <WordCard key={word.word} wordData={word} />)
+            ) : (
+              <p className="empty-msg">找不到符合的星號單字</p>
+            )}
+          </div>
+        </div>
+      );
     }
 
     if (view === 'review') {
@@ -164,12 +186,12 @@ const App = () => {
           <header className="section-header">
             <h2 className="gradient-text">複習專區</h2>
             <div className="nav-actions">
-               {learningStats.mistakes.length > 0 && (
-                 <button className="btn btn-primary" onClick={() => setView('quiz_review')}>開始複習測驗</button>
-               )}
+              {learningStats.mistakes.length > 0 && (
+                <button className="btn btn-primary" onClick={() => setView('quiz_review')}>開始複習測驗</button>
+              )}
             </div>
           </header>
-          
+
           <div className="review-intro glass">
             <p>這裡記錄了你在測驗中答錯的單字。你可以點擊星號將其加入收藏，或完全熟記後從此清單移除。</p>
           </div>
@@ -191,21 +213,11 @@ const App = () => {
     }
 
     if (view === 'quiz' || view === 'quiz_review') {
-      const sourceWords = view === 'quiz_review' ? learningStats.mistakes : words;
-      // Flatten for quiz
-      const quizWords = [];
-      sourceWords.forEach(w => {
-        quizWords.push(w);
-        if (w.derivatives && Array.isArray(w.derivatives)) {
-          quizWords.push(...w.derivatives);
-        }
-      });
-
       return (
-        <QuizEngine 
-          words={quizWords} 
-          onComplete={handleQuizComplete} 
-          onCancel={() => setView(view === 'quiz_review' ? 'review' : 'list')} 
+        <QuizEngine
+          words={quizWords}
+          onComplete={handleQuizComplete}
+          onCancel={() => setView(view === 'quiz_review' ? 'review' : 'list')}
         />
       );
     }
@@ -217,11 +229,11 @@ const App = () => {
           <header className="section-header">
             <h2 className="gradient-text">學習統計與備份</h2>
             <div className="nav-actions">
-               <button className="btn btn-secondary" onClick={exportData}>匯出備份 (JSON)</button>
-               <label className="btn btn-primary cursor-pointer">
-                 匯入備份
-                 <input type="file" hidden onChange={(e) => importData(e.target.files[0])} />
-               </label>
+              <button className="btn btn-secondary" onClick={exportData}>匯出備份 (JSON)</button>
+              <label className="btn btn-primary cursor-pointer">
+                匯入備份
+                <input type="file" hidden onChange={(e) => importData(e.target.files[0])} />
+              </label>
             </div>
           </header>
           <div className="stats-grid">
@@ -252,7 +264,7 @@ const App = () => {
     if (!selectedUnit) {
       const viewedUnits = learningStats.viewedUnits[selectedBook.title] || [];
       const isQuizSetup = view === 'quiz_setup';
-      
+
       return (
         <div className="fade-in">
           <header className="section-header">
@@ -261,28 +273,28 @@ const App = () => {
               <h2 className="gradient-text">{selectedBook.title}</h2>
             </div>
             <div className="flex-group">
-               {isQuizSetup ? (
-                 <>
-                   <span className="selection-count">已選 {quizSelection.length} 單元</span>
-                   <button className="btn btn-primary" onClick={handleStartRangeQuiz} disabled={quizSelection.length === 0}>開始練習</button>
-                   <button className="btn btn-secondary" onClick={() => { setView('home'); setQuizSelection([]); }}>取消</button>
-                 </>
-               ) : (
-                 <button className="btn btn-secondary" onClick={() => setView('quiz_setup')}>📍 範圍測驗</button>
-               )}
+              {isQuizSetup ? (
+                <>
+                  <span className="selection-count">已選 {quizSelection.length} 單元</span>
+                  <button className="btn btn-primary" onClick={handleStartRangeQuiz} disabled={quizSelection.length === 0}>開始練習</button>
+                  <button className="btn btn-secondary" onClick={() => { setView('home'); setQuizSelection([]); }}>取消</button>
+                </>
+              ) : (
+                <button className="btn btn-secondary" onClick={() => setView('quiz_setup')}>📍 範圍測驗</button>
+              )}
             </div>
           </header>
-          
+
           {isQuizSetup && (
             <div className="setup-hint glass">
-               請選擇 1~5 個單元進行跨區綜合測驗
+              請選擇 1~5 個單元進行跨區綜合測驗
             </div>
           )}
 
           <div className="unit-grid">
             {Array.from({ length: 40 }, (_, i) => i + 1).map(unit => (
-              <button 
-                key={unit} 
+              <button
+                key={unit}
                 className={`unit-btn glass ${quizSelection.includes(unit) ? 'selected' : ''}`}
                 onClick={() => handleUnitSelect(unit)}
               >
@@ -298,36 +310,36 @@ const App = () => {
       <div className="container fade-in">
         <header className="section-header">
           <div className="flex-group">
-            <button className="btn btn-secondary" onClick={() => setSelectedUnit(null)}>← 返回單元選擇</button>
+            <button className="btn btn-secondary" onClick={() => setSelectedUnit(null)}>← 返回</button>
             <h2 className="gradient-text">Unit {selectedUnit}</h2>
           </div>
           <div className="filter-actions flex-group">
-             <div className="search-bar glass">
-               <input 
-                 type="text" 
-                 placeholder="搜尋單字..." 
-                 value={searchQuery}
-                 onChange={(e) => {
-                   setSearchQuery(e.target.value);
-                   setSelectedWordIndex(0);
-                 }}
-               />
-             </div>
-             <select 
-               className="filter-select glass" 
-               value={filterType} 
-               onChange={(e) => {
-                 setFilterType(e.target.value);
-                 setSelectedWordIndex(0);
-               }}
-             >
-               <option value="all">全部單字</option>
-               <option value="starred">星號單字</option>
-             </select>
-             <button className="btn btn-primary" onClick={() => setView('quiz')}>開始測驗</button>
+            <div className="search-bar glass">
+              <input
+                type="text"
+                placeholder="搜尋單字..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSelectedWordIndex(0);
+                }}
+              />
+            </div>
+            <select
+              className="filter-select glass"
+              value={filterType}
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setSelectedWordIndex(0);
+              }}
+            >
+              <option value="all">全部單字</option>
+              <option value="starred">星號單字</option>
+            </select>
+            <button className="btn btn-primary" onClick={() => setView('quiz')}>開始測驗</button>
           </div>
         </header>
-        
+
         {loading ? (
           <div className="loading-state">載入中...</div>
         ) : (
@@ -347,25 +359,30 @@ const App = () => {
               return (
                 <>
                   {flattened.length > 0 && (
-                    <div 
-                      className="focused-word-section card-slider" 
-                      ref={cardSliderRef}
-                      onScroll={handleSliderScroll}
-                    >
-                      {flattened.map((word, idx) => (
-                        <div key={word.id || `${word.word}-${idx}`} className="slider-item">
-                          <WordCard wordData={word} />
-                        </div>
-                      ))}
+                    <div className="slider-wrapper">
+                      <div
+                        className="card-slider"
+                        ref={cardSliderRef}
+                      >
+                        {flattened.map((word, idx) => (
+                          <div 
+                            key={word.id || `${word.word}-${idx}`} 
+                            className="slider-item"
+                            data-index={idx}
+                          >
+                            <WordCard wordData={word} />
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  
+
                   <div className="vocabulary-list-section">
                     <div className="vocab-list">
                       {flattened.length > 0 ? (
                         flattened.map((word, index) => (
-                          <div 
-                            key={word.id || `${word.word}-${index}`} 
+                          <div
+                            key={word.id || `${word.word}-${index}`}
                             className={`vocab-list-item glass ${selectedWordIndex === index ? 'active' : ''} ${word.isDerivative ? 'is-derivative' : ''}`}
                             onClick={() => setSelectedWordIndex(index)}
                           >
@@ -373,7 +390,7 @@ const App = () => {
                             <span className="pos">{word.pos}</span>
                             <span className="meaning">{word.meaning}</span>
                             <div className="actions">
-                               {starredWords.some(w => w.word === word.word) && <span className="star-indicator">★</span>}
+                              {starredWords.some(w => w.word === word.word) && <span className="star-indicator">★</span>}
                             </div>
                           </div>
                         ))
