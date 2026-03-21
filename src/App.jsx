@@ -142,7 +142,7 @@ const App = () => {
     
     const t = setTimeout(() => {
       isScrollingRef.current = false;
-    }, 800); // 800ms to ensure smooth scroll finishes
+    }, 1000); // 1000ms to ensure smooth scroll and bouncing finishes
     return () => clearTimeout(t);
   }, [selectedWordIndex]);
 
@@ -384,7 +384,10 @@ const App = () => {
                           <div
                             key={word.id || `${word.word}-${index}`}
                             className={`vocab-list-item glass ${selectedWordIndex === index ? 'active' : ''} ${word.isDerivative ? 'is-derivative' : ''}`}
-                            onClick={() => setSelectedWordIndex(index)}
+                            onClick={() => {
+                              isScrollingRef.current = true;
+                              setSelectedWordIndex(index);
+                            }}
                           >
                             <span className="word">{word.word}</span>
                             <span className="pos">{word.pos}</span>
