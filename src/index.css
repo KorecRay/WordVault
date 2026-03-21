@@ -212,6 +212,42 @@ h1, h2, h3 {
   position: relative;
   overflow: hidden;
 }
+.vocab-list-item .actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.list-action-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.list-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.list-action-btn.star-btn.active {
+  color: var(--star);
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.list-action-btn.speak-btn:active {
+  background: var(--accent-primary);
+  color: white;
+}
 
 /* Derivative Indicator */
 .vocab-list-item.is-derivative {
@@ -236,10 +272,15 @@ h1, h2, h3 {
   font-size: 1rem;
 }
 
-.vocab-list-item:hover {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.1);
-  transform: translateX(4px);
+.vocab-list-item .word {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0; /* Important for grid/flex sizing */
 }
 
 .vocab-list-item.active {

@@ -9,7 +9,7 @@ const App = () => {
   const {
     selectedBook, setSelectedBook,
     selectedUnit, setSelectedUnit,
-    starredWords, learningStats, setLearningStats,
+    starredWords, toggleStar, learningStats, setLearningStats,
     markUnitViewed, clearMistake
   } = useApp();
   const { words, setWords, loading, setLoading, fetchWords } = useVocabulary();
@@ -44,7 +44,7 @@ const App = () => {
 
   const quizWords = useMemo(() => {
     if (view !== 'quiz' && view !== 'quiz_review') return [];
-    
+
     const sourceWords = view === 'quiz_review' ? learningStats.mistakes : words;
     const flattened = [];
     sourceWords.forEach(w => {
@@ -101,9 +101,34 @@ const App = () => {
     setView('list');
   };
 
+  const speak = (text) => {
+    window.speechSynthesis.cancel();
+    
+    // Warm up the engine with a tiny silent space to pre-allocate audio buffer
+    const warmUp = new SpeechSynthesisUtterance(" ");
+    warmUp.volume = 0;
+    window.speechSynthesis.speak(warmUp);
+
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      
+      // Try to find a high-quality voice
+      const voices = window.speechSynthesis.getVoices();
+      const bestVoice = voices.find(v => v.name.includes('Google US English')) || 
+                      voices.find(v => v.lang.startsWith('en-US')) || 
+                      voices.find(v => v.lang.startsWith('en'));
+      if (bestVoice) utterance.voice = bestVoice;
+      
+      utterance.rate = 0.85;
+      window._latestUtterance = utterance;
+      window.speechSynthesis.speak(utterance);
+    }, 150); 
+  };
+
   useEffect(() => {
     if (!cardSliderRef.current || view !== 'list') return;
-    
+
     const slider = cardSliderRef.current;
     const observerOptions = {
       root: slider,
@@ -112,7 +137,7 @@ const App = () => {
 
     const observer = new IntersectionObserver((entries) => {
       if (isScrollingRef.current) return; // Ignore updates during programmatic scroll
-      
+
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           const index = parseInt(entry.target.getAttribute('data-index'));
@@ -133,13 +158,13 @@ const App = () => {
     const items = slider.querySelectorAll('.slider-item');
     const target = items[selectedWordIndex];
     if (!target) return;
-    
+
     // Check if we actually need to scroll
     if (Math.abs(slider.scrollLeft - target.offsetLeft) < 5) return;
 
     isScrollingRef.current = true;
     slider.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
-    
+
     const t = setTimeout(() => {
       isScrollingRef.current = false;
     }, 1000); // 1000ms to ensure smooth scroll and bouncing finishes
@@ -365,8 +390,8 @@ const App = () => {
                         ref={cardSliderRef}
                       >
                         {flattened.map((word, idx) => (
-                          <div 
-                            key={word.id || `${word.word}-${idx}`} 
+                          <div
+                            key={word.id || `${word.word}-${idx}`}
                             className="slider-item"
                             data-index={idx}
                           >
@@ -389,11 +414,41 @@ const App = () => {
                               setSelectedWordIndex(index);
                             }}
                           >
-                            <span className="word">{word.word}</span>
+                            <span 
+                              className="word" 
+                              style={{ 
+                                fontSize: word.word.length > 12 ? '0.85rem' : (word.word.length > 10 ? '0.95rem' : '1.1rem') 
+                              }}
+                            >
+                              {word.word}
+                            </span>
                             <span className="pos">{word.pos}</span>
                             <span className="meaning">{word.meaning}</span>
                             <div className="actions">
-                              {starredWords.some(w => w.word === word.word) && <span className="star-indicator">★</span>}
+                              <button
+                                className="list-action-btn speak-btn no-flip"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  speak(word.word);
+                                }}
+                                title="發音"
+                              >
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                </svg>
+                              </button>
+                              <button
+                                className={`list-action-btn star-btn no-flip ${starredWords.some(w => w.word === word.word) ? 'active' : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleStar(word);
+                                }}
+                                title="加入收藏"
+                              >
+                                <svg viewBox="0 0 24 24" width="18" height="18">
+                                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill={starredWords.some(w => w.word === word.word) ? 'var(--star)' : 'none'} stroke={starredWords.some(w => w.word === word.word) ? 'var(--star)' : 'currentColor'} strokeWidth="2" />
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         ))

@@ -4,19 +4,46 @@ import { useApp } from '../context/AppContext';
 const WordCard = ({ wordData }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const { starredWords, toggleStar } = useApp();
-  
+
   const isStarred = starredWords.some(w => w.word === wordData.word);
 
   const speak = (text) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.cancel();
+    
+    // Warm up
+    const warmUp = new SpeechSynthesisUtterance(" ");
+    warmUp.volume = 0;
+    window.speechSynthesis.speak(warmUp);
+
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      
+      const voices = window.speechSynthesis.getVoices();
+      const bestVoice = voices.find(v => v.name.includes('Google US English')) || 
+                      voices.find(v => v.lang.startsWith('en-US')) || 
+                      voices.find(v => v.lang.startsWith('en'));
+      if (bestVoice) utterance.voice = bestVoice;
+
+      utterance.rate = 0.85;
+      window._latestUtterance = utterance;
+      window.speechSynthesis.speak(utterance);
+    }, 150);
   };
 
   const handleCardClick = (e) => {
     // Prevents flipping when clicking the star or speak buttons
     if (e.target.closest('.no-flip')) return;
     setIsFlipped(!isFlipped);
+  };
+
+  const getFontSize = (text) => {
+    if (!text) return '3.5rem';
+    const len = text.length;
+    if (len > 15) return '1.8rem';
+    if (len > 12) return '2.2rem';
+    if (len > 10) return '2.8rem';
+    return '3.5rem';
   };
 
   return (
@@ -26,19 +53,24 @@ const WordCard = ({ wordData }) => {
         <div className="word-card-front glass">
           <div className="card-header">
             <div className="badge pos-tag">{wordData.pos}</div>
-            <button 
+            <button
               className={`star-action-btn no-flip ${isStarred ? 'active' : ''}`}
               onClick={() => toggleStar(wordData)}
               aria-label="收藏單字"
             >
               <svg viewBox="0 0 24 24" width="24" height="24">
-                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill={isStarred ? 'var(--star)' : 'none'} stroke={isStarred ? 'var(--star)' : 'currentColor'} strokeWidth="2"/>
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill={isStarred ? 'var(--star)' : 'none'} stroke={isStarred ? 'var(--star)' : 'currentColor'} strokeWidth="2" />
               </svg>
             </button>
           </div>
-          
+
           <div className="card-body main-display">
-            <h2 className="display-word gradient-text">{wordData.word}</h2>
+            <h2 
+              className="display-word gradient-text"
+              style={{ fontSize: getFontSize(wordData.word) }}
+            >
+              {wordData.word}
+            </h2>
             <div className="pronunciation no-flip" onClick={() => speak(wordData.word)}>
               <span className="ipa">{wordData.phonetic}</span>
               <div className="audio-icon-wrapper">
@@ -48,7 +80,7 @@ const WordCard = ({ wordData }) => {
               </div>
             </div>
           </div>
-          
+
           <div className="card-footer-hint">
             <div className="interaction-badge">
               <span>點擊翻面查看詳解</span>
@@ -62,16 +94,16 @@ const WordCard = ({ wordData }) => {
         {/* Back Side */}
         <div className="word-card-back glass">
           <div className="back-header">
-             <div className="badge pos-tag">{wordData.pos}</div>
-             <h3 className="definition">{wordData.meaning}</h3>
+            <div className="badge pos-tag">{wordData.pos}</div>
+            <h3 className="definition">{wordData.meaning}</h3>
           </div>
-          
+
           <div className="back-scroll-content">
             {/* Bilingual Example Section */}
             {(wordData.example_en || wordData.example) && (
               <div className="content-block">
                 <div className="block-label">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                   活用例句
                 </div>
                 <div className="bilingual-example">
@@ -85,7 +117,7 @@ const WordCard = ({ wordData }) => {
             {Array.isArray(wordData.phrases) && wordData.phrases.length > 0 && (
               <div className="content-block">
                 <div className="block-label">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                   延伸片語
                 </div>
                 <div className="phrases-container">
@@ -123,11 +155,11 @@ const WordCard = ({ wordData }) => {
               </div>
             )}
           </div>
-          
+
           <div className="card-footer-hint reverse">
-             <div className="interaction-badge">
-               再次點擊回正面
-             </div>
+            <div className="interaction-badge">
+              再次點擊回正面
+            </div>
           </div>
         </div>
       </div>
