@@ -169,9 +169,15 @@ const WordCard = ({ wordData }) => {
           perspective: 1200px;
           height: 440px;
           width: 100%;
-          max-width: 480px;
+          max-width: 480px; /* Desktop default */
           margin: 0 auto;
           cursor: pointer;
+        }
+
+        @media (max-width: 640px) {
+          .word-card-container {
+            max-width: 100%; /* Full width on mobile */
+          }
         }
 
         .word-card-inner {

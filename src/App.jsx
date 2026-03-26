@@ -391,7 +391,7 @@ const App = () => {
                       >
                         {flattened.map((word, idx) => (
                           <div
-                            key={word.id || `${word.word}-${idx}`}
+                            key={`slider-${word.word}-${word.id || ''}-${idx}`}
                             className="slider-item"
                             data-index={idx}
                           >
@@ -407,7 +407,7 @@ const App = () => {
                       {flattened.length > 0 ? (
                         flattened.map((word, index) => (
                           <div
-                            key={word.id || `${word.word}-${index}`}
+                            key={`list-${word.word}-${word.id || ''}-${index}`}
                             className={`vocab-list-item glass ${selectedWordIndex === index ? 'active' : ''} ${word.isDerivative ? 'is-derivative' : ''}`}
                             onClick={() => {
                               isScrollingRef.current = true;
